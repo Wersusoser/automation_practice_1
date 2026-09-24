@@ -1,202 +1,217 @@
-# Вариант 2: а) ДКА #a==2 и #b>2 над {a,b}
-#            б) НКА над {1,2,3}: последний символ раньше не встречался
+#   Variant 2:
+#   DFA: количество a РОВНО 2, количество b БОЛЬШЕ 2, алфавит {a,b}
+#   NFA: последний символ цепочки раньше не встречался, алфавит {1,2,3}
 
-import sys
-
-
-def pad(text, width):
-    while len(text) < width:
-        text = text + " "
-    return text
+from enum import Enum
 
 
-def ids_text(lst):
-    text = ""
-    for t in lst:
-        text = text + "q" + str(t)
-    return text if lst else "-"
+class DFA:
+    TOTAL_STATES = 13
+    FINAL_STATES = 1
+    ALPHABET_CHARCTERS = 2
+
+    UNKNOWN_SYMBOL_ERR = 0
+    NOT_REACHED_FINAL_STATE = 1
+    REACHED_FINAL_STATE = 2
+
+    class DFA_STATES(Enum):
+        q0, q1, q2, q3, q4, q5, q6, q7, q8, q9, q10, q11, q12 = range(13)
+
+    class Input(Enum):
+        _A, _B = range(2)
+
+    g_Accepted_states = [DFA_STATES.q11.value]                       # The set F
+    g_alphabet = ['a', 'b']                                          # The set Sigma
+
+    g_Transition_Table = []                                          # Transition function
+    for _ in range(TOTAL_STATES):
+        row = []
+        for _ in range(ALPHABET_CHARCTERS):
+            row.append(0)
+        g_Transition_Table.append(row)
+
+    g_Current_state = DFA_STATES.q0.value                            # Start state of DFA
+
+    @classmethod
+    def SetDFA_Transitions(cls):
+        for i in range(0, 3):
+            for j in range(0, 4):
+                s = i * 4 + j
+                cls.g_Transition_Table[s][cls.Input._A.value] = (i + 1) * 4 + j if i < 2 else 12
+                cls.g_Transition_Table[s][cls.Input._B.value] = i * 4 + (j + 1) if j < 3 else i * 4 + 3
+        cls.g_Transition_Table[12][cls.Input._A.value] = 12
+        cls.g_Transition_Table[12][cls.Input._B.value] = 12
+
+    @classmethod
+    def DFA(cls, current_symbol):
+        pos = 0
+        while pos < cls.ALPHABET_CHARCTERS:
+            if current_symbol == cls.g_alphabet[pos]:
+                break
+            pos += 1
+        if cls.ALPHABET_CHARCTERS == pos:
+            return cls.UNKNOWN_SYMBOL_ERR
+        for i in range(cls.FINAL_STATES):
+            cls.g_Current_state = cls.g_Transition_Table[cls.g_Current_state][pos]
+            if cls.g_Current_state == cls.g_Accepted_states[i]:
+                return cls.REACHED_FINAL_STATE
+        return cls.NOT_REACHED_FINAL_STATE
+
+    @classmethod
+    def ResetDFA(cls):
+        cls.g_Current_state = cls.DFA_STATES.q0.value
 
 
-def sym_index(SIGMA, c):
-    for k, s in enumerate(SIGMA):
-        if s == c:
-            return k
-    return -1
+class NFA:
+    TOTAL_STATES = 7
+    FINAL_STATES = 3
+    ALPHABET_CHARCTERS = 3
+
+    UNKNOWN_SYMBOL_ERR = 0
+    NOT_REACHED_FINAL_STATE = 1
+    REACHED_FINAL_STATE = 2
+
+    class NFA_STATES(Enum):
+        q0, q1, q2, q3, f1, f2, f3 = range(7)
+
+    class Input(Enum):
+        _1, _2, _3 = range(3)
+
+    g_Accepted_states = [NFA_STATES.f1.value, NFA_STATES.f2.value, NFA_STATES.f3.value]  # The set F
+    g_alphabet = ['1', '2', '3']                                     # The set Sigma
+
+    g_Transition_Table = []                                          # Transition function (set-valued)
+    for _ in range(TOTAL_STATES):
+        row = []
+        for _ in range(ALPHABET_CHARCTERS):
+            row.append([])
+        g_Transition_Table.append(row)
+
+    g_Epsilon_Transitions = []                                       # eps-переходы (доп. таблица)
+    for _ in range(TOTAL_STATES):
+        g_Epsilon_Transitions.append([])
+
+    g_Current_states = [False] * TOTAL_STATES                        # Start "state" (множество) of NFA
+
+    @classmethod
+    def SetNFA_Transitions(cls):
+        cls.g_Epsilon_Transitions[cls.NFA_STATES.q0.value] = [
+            cls.NFA_STATES.q1.value, cls.NFA_STATES.q2.value, cls.NFA_STATES.q3.value
+        ]
+
+        cls.g_Transition_Table[cls.NFA_STATES.q1.value][cls.Input._2.value] = [cls.NFA_STATES.q1.value]
+        cls.g_Transition_Table[cls.NFA_STATES.q1.value][cls.Input._3.value] = [cls.NFA_STATES.q1.value]
+        cls.g_Transition_Table[cls.NFA_STATES.q1.value][cls.Input._1.value] = [cls.NFA_STATES.f1.value]
+
+        cls.g_Transition_Table[cls.NFA_STATES.q2.value][cls.Input._1.value] = [cls.NFA_STATES.q2.value]
+        cls.g_Transition_Table[cls.NFA_STATES.q2.value][cls.Input._3.value] = [cls.NFA_STATES.q2.value]
+        cls.g_Transition_Table[cls.NFA_STATES.q2.value][cls.Input._2.value] = [cls.NFA_STATES.f2.value]
+
+        cls.g_Transition_Table[cls.NFA_STATES.q3.value][cls.Input._1.value] = [cls.NFA_STATES.q3.value]
+        cls.g_Transition_Table[cls.NFA_STATES.q3.value][cls.Input._2.value] = [cls.NFA_STATES.q3.value]
+        cls.g_Transition_Table[cls.NFA_STATES.q3.value][cls.Input._3.value] = [cls.NFA_STATES.f3.value]
+
+    @classmethod
+    def EpsilonClosure(cls, states_set):
+        changed = True
+        while changed:
+            changed = False
+            for s in range(cls.TOTAL_STATES):
+                if states_set[s]:
+                    for t in cls.g_Epsilon_Transitions[s]:
+                        if not states_set[t]:
+                            states_set[t] = True
+                            changed = True
+
+    @classmethod
+    def ResetNFA(cls):
+        cls.g_Current_states = [False] * cls.TOTAL_STATES
+        cls.g_Current_states[cls.NFA_STATES.q0.value] = True
+        cls.EpsilonClosure(cls.g_Current_states)
+
+    @classmethod
+    def NFA(cls, current_symbol):
+        pos = 0
+        while pos < cls.ALPHABET_CHARCTERS:
+            if current_symbol == cls.g_alphabet[pos]:
+                break
+            pos += 1
+        if cls.ALPHABET_CHARCTERS == pos:
+            return cls.UNKNOWN_SYMBOL_ERR
+        next_states = [False] * cls.TOTAL_STATES
+        for s in range(cls.TOTAL_STATES):
+            if cls.g_Current_states[s]:
+                for t in cls.g_Transition_Table[s][pos]:
+                    next_states[t] = True
+        cls.EpsilonClosure(next_states)
+        cls.g_Current_states = next_states
+        for i in range(cls.FINAL_STATES):
+            if cls.g_Current_states[cls.g_Accepted_states[i]]:
+                return cls.REACHED_FINAL_STATE
+        return cls.NOT_REACHED_FINAL_STATE
 
 
-Q_DFA     = list(range(13))
-SIGMA_DFA = ('a', 'b')
-Q0_DFA    = 0
-F_DFA     = {11}
-DEAD_DFA  = 12
+class Main:
 
-DELTA_DFA = [[DEAD_DFA, DEAD_DFA] for _ in Q_DFA]
-for i in range(3):
-    for j in range(4):
-        s = i * 4 + j
-        DELTA_DFA[s][0] = (i + 1) * 4 + j if i < 2 else DEAD_DFA
-        DELTA_DFA[s][1] = i * 4 + (j + 1) if j < 3 else i * 4 + 3
+    @staticmethod
+    def main():
+        result = -1
 
-DFA = (Q_DFA, SIGMA_DFA, DELTA_DFA, Q0_DFA, F_DFA)
+        DFA.SetDFA_Transitions()   # Fill transition table
 
+        print("Enter a string with 'a' s and 'b's:")
+        print("Press Enter Key to stop")
 
-def dfa_run(w, trace=False):
-    Q, SIGMA, delta, q0, F = DFA
-    s = q0
-    if trace:
-        sys.stdout.write("  q" + str(s))
-    for c in w:
-        k = sym_index(SIGMA, c)
-        if k == -1:
-            if trace:
-                print("  (символ вне алфавита)")
-            return 0
-        s = delta[s][k]
-        if trace:
-            sys.stdout.write(" -" + c + "-> q" + str(s))
-    if trace:
-        print()
-    return 1 if s in F else 0
+        while True:
+            input_line = input()
+            if len(input_line) == 0:
+                break
 
+            DFA.ResetDFA()
 
-def dfa_print_table():
-    Q, SIGMA, delta, q0, F = DFA
-    print("ДКА, таблица переходов delta:")
-    print(" state |  a  |  b  | final")
-    for s in Q:
-        line = " " + pad("q" + str(s), 6) + "| " + pad("q" + str(delta[s][0]), 4)
-        line += "| " + pad("q" + str(delta[s][1]), 4) + "|  "
-        line += "+" if s in F else "-"
-        print(line)
-    print("(q0 - старт, q12 - ловушка, q11 - финал)\n")
+            i = 0
+            while i < len(input_line):
+                c = input_line[i]
+                if c == '\n':
+                    break
+                result = DFA.DFA(c)
+                if DFA.REACHED_FINAL_STATE != result and DFA.NOT_REACHED_FINAL_STATE != result:
+                    break
+                i += 1
 
+            if DFA.REACHED_FINAL_STATE == result:
+                print("Accepted")
+            else:
+                print("Rejected")
+            print()
 
-Q_NFA     = list(range(7))
-SIGMA_NFA = ('1', '2', '3')
-Q0_NFA    = 0
-F_NFA     = {4, 5, 6}
+        NFA.SetNFA_Transitions()   # Fill transition table
 
-DELTA_NFA = [[set() for _ in range(len(SIGMA_NFA) + 1)] for _ in Q_NFA]
+        print("Enter a string with '1' s, '2's and '3's:")
+        print("Press Enter Key to stop")
 
-DELTA_NFA[0][0] = {1, 2, 3}
+        while True:
+            input_line = input()
+            if len(input_line) == 0:
+                break
 
-DELTA_NFA[1][1] = {4}; DELTA_NFA[1][2] = {1}; DELTA_NFA[1][3] = {1}
-DELTA_NFA[2][1] = {2}; DELTA_NFA[2][2] = {5}; DELTA_NFA[2][3] = {2}
-DELTA_NFA[3][1] = {3}; DELTA_NFA[3][2] = {3}; DELTA_NFA[3][3] = {6}
+            NFA.ResetNFA()
+            i = 0
+            while i < len(input_line):
+                c = input_line[i]
+                if c == '\n':
+                    break
+                result = NFA.NFA(c)
+                if NFA.REACHED_FINAL_STATE != result and NFA.NOT_REACHED_FINAL_STATE != result:
+                    break
+                i += 1
 
-NFA = (Q_NFA, SIGMA_NFA, DELTA_NFA, Q0_NFA, F_NFA)
-
-
-def eps_closure(delta, cur):
-    stack = list(cur)
-    while stack:
-        s = stack.pop()
-        for t in delta[s][0]:
-            if t not in cur:
-                cur.add(t)
-                stack.append(t)
-    return cur
-
-
-def fmt_set(S):
-    return "{" + " ".join("q" + str(s) for s in sorted(S)) + "}"
-
-
-def nfa_run(w, trace=False):
-    Q, SIGMA, delta, q0, F = NFA
-    cur = eps_closure(delta, {q0})
-    if trace:
-        sys.stdout.write("  " + fmt_set(cur))
-    for c in w:
-        k = sym_index(SIGMA, c)
-        if k == -1:
-            if trace:
-                print("  (символ вне алфавита)")
-            return 0
-        nxt = set()
-        for s in cur:
-            nxt |= delta[s][k + 1]
-        cur = eps_closure(delta, nxt)
-        if trace:
-            sys.stdout.write(" -" + c + "-> " + fmt_set(cur))
-    if trace:
-        print()
-    return 1 if cur & F else 0
-
-
-def nfa_print_table():
-    Q, SIGMA, delta, q0, F = NFA
-    print("НКА, таблица переходов delta (столбец eps - часть delta):")
-    print(" state | eps     |  1  |  2  |  3  | final")
-    for s in Q:
-        e  = ids_text(delta[s][0])
-        c1 = ids_text(delta[s][1])
-        c2 = ids_text(delta[s][2])
-        c3 = ids_text(delta[s][3])
-        line = " q" + str(s) + "     | " + pad(e, 8) + "| " + pad(c1, 4)
-        line += "| " + pad(c2, 4) + "| " + pad(c3, 4) + "|  "
-        line += "+" if s in F else "-"
-        print(line)
-    print("(q0 - старт, f1/f2/f3 = q4/q5/q6 - финалы)\n")
-
-
-def run_suite(tests, func):
-    print(" Input        | Result")
-    print("--------------+---------")
-    for w in tests:
-        label = w if w else "(пусто)"
-        print(" " + pad(label, 13) + "| " + ("Accept" if func(w) else "Reject"))
-    print()
-
-
-def interactive(auto_tuple, runner, name, allow_trace=True):
-    Q, SIGMA, delta, q0, F = auto_tuple
-    print(f"\n--- Интерактивный режим: {name} ---")
-    print(f"  Алфавит: {SIGMA}")
-    print(f"  Старт:   q{q0}")
-    print(f"  Финал:   {{{', '.join('q' + str(s) for s in sorted(F))}}}")
-    print("  Введите цепочку и Enter. Пустая строка — выход.")
-    print("  Припишите '!' в конце, чтобы увидеть трассировку,")
-    print("  например:  aabbb!")
-
-    while True:
-        try:
-            w = input("> ")
-        except EOFError:
-            break
-
-        if w == "":
-            break
-
-        trace = False
-        if allow_trace and w.endswith("!"):
-            trace = True
-            w = w[:-1]
-
-        bad = [c for c in w if c not in SIGMA]
-        if bad:
-            print(f"  Ошибка: символы {bad} не входят в алфавит {SIGMA}")
-            continue
-
-        label = w if w else "(пусто)"
-        res = runner(w, trace=trace)
-        print(f"  {label}: " + ("Accept" if res else "Reject"))
+            if NFA.REACHED_FINAL_STATE == result:
+                print("Accepted")
+            else:
+                print("Rejected")
+            print()
 
 
 if __name__ == "__main__":
-    print("=== ЧАСТЬ А: ДКА  #a=2 и #b>2 ===\n")
-    dfa_print_table()
-    run_suite(["aabbb", "aabb", "ab", "aaabbb", "bbbaa",
-               "", "aabbbbbb", "bbbbb", "aa"], dfa_run)
-    print("Трассировка \"aabbb\":")
-    dfa_run("aabbb", trace=True)
-
-    print("\n=== ЧАСТЬ Б: НКА над {1,2,3} ===\n")
-    nfa_print_table()
-    run_suite(["2321", "121", "3", "231", "1231",
-               "233", "", "12", "13221"], nfa_run)
-    print("Трассировка \"2321\":")
-    nfa_run("2321", trace=True)
-
-    interactive(DFA, dfa_run, "ДКА (#a=2, #b>2)")
-    interactive(NFA, nfa_run, "НКА (последний символ новый)")
+    Main.main()
